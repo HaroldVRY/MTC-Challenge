@@ -1,0 +1,22 @@
+# SMART Challenge 2026 — YOLO-OBB dataset config
+# Relative to project root when running from there; adjust `path` as needed.
+
+path: ../data/yolo        # root of the YOLO dataset
+train: images/train
+val:   images/val
+
+nc: 9
+names:
+  0: auto
+  1: combi
+  2: microbus
+  3: minibus
+  4: omnibus
+  5: articulado
+  6: camion
+  7: mototaxi
+  8: motocicleta
+
+# Note: YOLO class IDs are 0-indexed here.
+# The competition uses 1-indexed category_id (1=auto … 9=motocicleta).
+# src/dataset.py applies the offset automatically.

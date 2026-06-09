@@ -1,0 +1,119 @@
+Reporte de Extracción y Análisis
+1. Extracción completada
+Elemento	Valor
+Archivo origen	train.zip (raíz del proyecto, 41 GB)
+Destino	data/raw/train_frames/
+Total archivos extraídos	54 262 JPGs
+Tiempo de extracción	~10 min (Python zipfile en fondo)
+2. Resumen de frames
+Métrica	Valor
+Total frames	54 262
+Videos únicos	1 088
+Frames por video — mínimo	18 (1 video)
+Frames por video — máximo	50
+Frames por video — media	49.9
+Frames por video — moda	50 (1 076 de 1 088 videos)
+Distribución frames-por-video:
+
+
+ 18 frames:     1 video   ← outlier
+ 21 frames:     1 video   ← outlier
+ 23 frames:     1 video   ← outlier
+ 24 frames:     1 video   ← outlier
+ 34 frames:     1 video   ← outlier
+ 48 frames:     1 video
+ 49 frames:     6 videos
+ 50 frames:  1076 videos  (98.9% del total)
+3. Resolución
+Resolución	Frames	Porcentaje
+1920×1080	300/300 muestreados	100%
+Resolución completamente uniforme en todos los videos. Ningún video mezcla tamaños. Esto simplifica mucho el pipeline: imgsz=1280 en YOLO recortará a un cuadrado, pero puedes usar rect=True en Ultralytics para preservar el aspecto.
+
+
+
+Reporte de Integridad y EDA del Dataset
+1. Integridad CSV ↔ Disco
+Verificación	Resultado
+IDs en train.csv	54 262
+JPGs en train_frames/	54 262
+IDs sin imagen en disco	0
+Imágenes sin ID en CSV	0
+Integridad perfecta. El zip estaba completo y no falta ningún frame.
+
+2. Frames y Videos
+Métrica	Valor
+Total frames	54 262
+Videos únicos	1 088
+Frames con detecciones	50 868 (93.7%)
+Frames vacíos (none)	3 394 (6.3%)
+Detecciones totales	601 934
+Dets/frame promedio (frames con dets)	11.83
+Dets/frame máximo	53
+Frames/video: min / media / max	18 / 49.9 / 50
+Resolución uniforme	1920×1080 (100% de los frames)
+3. Distribución de Clases — Desbalance Severo
+ID	Clase	Instancias	%	Ratio vs auto
+1	auto	481 731	80.0%	1×
+2	combi	10 152	1.7%	47.5× escaso
+3	microbus	2 802	0.5%	172× escaso
+4	minibus	18 941	3.1%	25.4× escaso
+5	omnibus	2 283	0.4%	211× escaso
+6	articulado	250	0.04%	1 927× rarísimo
+7	camion	32 668	5.4%	14.7×
+8	mototaxi	5 539	0.9%	87× escaso
+9	motocicleta	47 568	7.9%	10.1×
+articulado con solo 250 instancias es el problema más crítico. En muchos videos probablemente no aparece ninguno.
+
+4. Dimensiones OBB (en píxeles sobre 1920×1080)
+mín	p25	mediana	p75	máx
+Width	0.9	37	80	92	380
+Height	0.1	34	38	76	325
+Hay cajas degeneradas con width < 1 o height < 1 — habrá que filtrarlas en dataset.py.
+
+5. Ángulo — Hallazgo Crítico para el Preprocesamiento
+El dataset usa ángulos en [0°, 360°) — rango completo circular.
+
+
+Ángulos > 180°: 119 268 instancias (19.8% del total)
+Ángulos < 0°:   0
+Ángulos > 360°: 0
+Problema: Ultralytics YOLO-OBB espera ángulos normalizados en [0°, 180°) (el OBB es simétrico: una caja a 200° es idéntica a una a 20°). Necesitamos agregar una normalización en dataset.py antes de escribir los labels:
+
+
+# Convertir [0, 360) → [0, 180) para YOLO-OBB
+angle_yolo = angle_deg % 180.0
+Esto debe aplicarse también al hacer la conversión inversa en submission.py si comparamos contra GT, aunque para el submission el evaluador acepta el rango completo.
+
+
+
+
+1. make_split.py se ejecutó correctamente
+46,089 frames en train y 8,173 en val — 0 imágenes no encontradas, 0 errores. configs/data.yaml, train_ids.txt y val_ids.txt escritos.
+
+2. Instancias por clase
+Clase	Train	Val	Total	Val%
+auto	405,043	76,688	481,731	15.9%
+combi	8,868	1,284	10,152	12.6%
+microbus	2,326	476	2,802	17.0%
+minibus	16,292	2,649	18,941	14.0%
+omnibus	1,933	350	2,283	15.3%
+articulado	200	50	250	20.0%
+camion	27,589	5,079	32,668	15.5%
+mototaxi	4,736	803	5,539	14.5%
+motocicleta	40,005	7,563	47,568	15.9%
+Todas las clases superan holgadamente el mínimo de 15 instancias en val. La más ajustada es articulado con 50.
+
+3. Videos por clase rara
+Clase	Videos totales	En train	En val
+combi	132	117	15
+microbus	61	51	10
+omnibus	41	37	4
+articulado	5	4	1
+mototaxi	119	105	14
+Articulado está representado en val con 1 de sus 5 videos (50 frames, 20% de las instancias totales). Dada la escasez extrema (solo 5 videos en todo el dataset), es el mejor resultado posible sin K-fold.
+
+4. Integridad del split
+Videos en train: 924 | Videos en val: 164
+Overlap video_id train ∩ val: 0 — sin fuga temporal.
+Videos all-none (ningún frame tiene anotación): 41 totales — 35 fueron a train, 6 a val. Se repartieron proporcionalmente sin tratamiento especial.
+

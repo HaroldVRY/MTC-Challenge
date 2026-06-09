@@ -1,0 +1,14 @@
+path: C:/Users/USUARIO/GitHub/MTC-Challenge/data/yolo
+train: images/train
+val: images/val
+nc: 9
+names:
+  0: auto
+  1: combi
+  2: microbus
+  3: minibus
+  4: omnibus
+  5: articulado
+  6: camion
+  7: mototaxi
+  8: motocicleta
